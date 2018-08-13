@@ -8,10 +8,10 @@ LOG = logging.getLogger("shotgun_api3")
 LOG.setLevel(logging.WARN)
 
 try:
-    from httplib2 import Http, ProxyInfo, socks, SSLHandshakeError
+    from httplib2 import Http, ProxyInfo, socks
 except ImportError:
     LOG.debug("httplib2 not found, dropping back to embedded httplib2")
-    from .lib.httplib2 import Http, ProxyInfo, socks, SSLHandshakeError
+    from .lib.httplib2 import Http, ProxyInfo, socks
 
 try:
     import simplejson as json
