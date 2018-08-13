@@ -2,13 +2,16 @@ import sys
 import os
 import logging
 
-from .lib.httplib2 import Http, ProxyInfo, socks, SSLHandshakeError
 from .lib.sgtimezone import SgTimezone
-from .lib.xmlrpclib import Error, ProtocolError, ResponseError
-
 
 LOG = logging.getLogger("shotgun_api3")
 LOG.setLevel(logging.WARN)
+
+try:
+    from httplib2 import Http, ProxyInfo, socks, SSLHandshakeError
+except ImportError:
+    LOG.debug("httplib2 not found, dropping back to embedded httplib2")
+    from .lib.httplib2 import Http, ProxyInfo, socks, SSLHandshakeError
 
 try:
     import simplejson as json
@@ -24,6 +27,11 @@ except ImportError:
         sys.path.append(lib_path)
         from .lib import simplejson as json
         sys.path.pop()
+
+if sys.version_info < (3,):
+    from xmlrpclib import Error, ProtocolError, ResponseError
+else:
+    from xmlrpc.client import Error, ProtocolError, ResponseError
 
 
 def _is_mimetypes_broken():
