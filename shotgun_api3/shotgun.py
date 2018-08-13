@@ -40,12 +40,14 @@ if sys.version_info < (3,):
     import urllib2 as url_request
     import urlparse
     import httplib
+    _unicode = unicode
 else:
     import http.cookiejar as cookelib
     from io import StringIO
     import urllib.request as url_request
     import urllib.parse as urlparse
     import http.client as httplib
+    _unicode = bytes
     
 import cStringIO    # used for attachment upload
 import datetime
@@ -1975,7 +1977,7 @@ class Shotgun(object):
             "field_name" : field_name,
             "properties": [
                 {"property_name" : k, "value" : v}
-                for k, v in (properties or {}).iteritems()
+                for k, v in (properties or {}).items()
             ]
         }
 
@@ -2270,7 +2272,7 @@ class Shotgun(object):
         # have to raise a sane exception. This will always work for ascii and utf-8
         # encoded strings, but will fail on some others if the string includes non
         # ascii characters.
-        if not isinstance(path, unicode):
+        if not isinstance(path, _unicode):
             try:
                 path = path.decode("utf-8")
             except UnicodeDecodeError:
@@ -2404,7 +2406,7 @@ class Shotgun(object):
         # to call open on the unicode path, but we'll use the encoded string
         # for everything else.
         path_to_open = path
-        if isinstance(path, unicode):
+        if isinstance(path, _unicode):
             path = path.encode("utf-8")
             if sys.platform != "win32":
                 path_to_open = path
@@ -2891,7 +2893,7 @@ class Shotgun(object):
             raise ValueError("entity_types parameter must be a dictionary")
 
         api_entity_types = {}
-        for (entity_type, filter_list) in entity_types.iteritems():
+        for (entity_type, filter_list) in entity_types.items():
 
             if isinstance(filter_list, (list, tuple)):
                 resolved_filters = _translate_filters(filter_list, filter_operator=None)
@@ -3281,7 +3283,7 @@ class Shotgun(object):
         """
 
         wire = json.dumps(payload, ensure_ascii=False)
-        if isinstance(wire, unicode):
+        if isinstance(wire, _unicode):
             return wire.encode("utf-8")
         return wire
 
@@ -3362,7 +3364,7 @@ class Shotgun(object):
         http_status = (resp.status, resp.reason)
         resp_headers = dict(
             (k.lower(), v)
-            for k, v in resp.iteritems()
+            for k, v in resp.items()
         )
         resp_body = content
 
@@ -3425,7 +3427,7 @@ class Shotgun(object):
         def _decode_list(lst):
             newlist = []
             for i in lst:
-                if isinstance(i, unicode):
+                if isinstance(i, _unicode):
                     i = i.encode('utf-8')
                 elif isinstance(i, list):
                     i = _decode_list(i)
@@ -3434,10 +3436,10 @@ class Shotgun(object):
 
         def _decode_dict(dct):
             newdict = {}
-            for k, v in dct.iteritems():
-                if isinstance(k, unicode):
+            for k, v in dct.items():
+                if isinstance(k, _unicode):
                     k = k.encode('utf-8')
-                if isinstance(v, unicode):
+                if isinstance(v, _unicode):
                     v = v.encode('utf-8')
                 elif isinstance(v, list):
                     v = _decode_list(v)
@@ -3494,7 +3496,7 @@ class Shotgun(object):
         if isinstance(data, dict):
             return dict(
                 (k, recursive(v, visitor))
-                for k, v in data.iteritems()
+                for k, v in data.items()
             )
 
         return visitor(data)
@@ -3537,7 +3539,7 @@ class Shotgun(object):
                     value = _change_tz(value)
                 return value.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-            if isinstance(value, str):
+            if isinstance(value, _unicode):
                 # Convert strings to unicode
                 return value.decode("utf-8")
 
@@ -3559,7 +3561,7 @@ class Shotgun(object):
             _change_tz = None
 
         def _inbound_visitor(value):
-            if isinstance(value, basestring):
+            if isinstance(value, str):
                 if len(value) == 20 and self._DATE_TIME_PATTERN.match(value):
                     try:
                         # strptime was not on datetime in python2.4
@@ -3641,12 +3643,12 @@ class Shotgun(object):
                 continue
 
             # iterate over each item and check each field for possible injection
-            for k, v in rec.iteritems():
+            for k, v in rec.items():
                 if not v:
                     continue
 
                 # Check for html entities in strings
-                if isinstance(v, types.StringTypes):
+                if isinstance(v, str):
                     rec[k] = rec[k].replace('&lt;', '<')
 
                 # check for thumbnail for older version (<3.3.0) of shotgun
@@ -3711,7 +3713,7 @@ class Shotgun(object):
         [{'field_name': 'foo', 'value': 'bar', 'thing1': 'value1'}]
         """
         ret = []
-        for k, v in (d or {}).iteritems():
+        for k, v in (d or {}).items():
             d = {key_name: k, value_name: v}
             d.update((extra_data or {}).get(k, {}))
             ret.append(d)
@@ -3724,7 +3726,7 @@ class Shotgun(object):
 
         e.g. d {'foo' : 'bar'} changed to {'foo': {"value": 'bar'}]
         """
-        return dict([(k, {key_name: v}) for (k,v) in (d or {}).iteritems()])
+        return dict([(k, {key_name: v}) for (k,v) in (d or {}).items()])
 
     def _upload_file_to_storage(self, path, storage_url):
         """
@@ -3988,7 +3990,7 @@ class FormPostHandler(url_request.BaseHandler):
 
     def http_request(self, request):
         data = request.get_data()
-        if data is not None and not isinstance(data, basestring):
+        if data is not None and not isinstance(data, str):
             files = []
             params = []
             for key, value in data.items():
@@ -4021,7 +4023,7 @@ class FormPostHandler(url_request.BaseHandler):
             # If we don't, the mix of unicode and strings going into the
             # buffer can cause UnicodeEncodeErrors to be raised.
             filename = fd.name
-            if isinstance(filename, unicode):
+            if isinstance(filename, _unicode):
                 filename = filename.encode("utf-8")
             filename = filename.split('/')[-1]
             content_type = mimetypes.guess_type(filename)[0]
