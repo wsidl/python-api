@@ -30,23 +30,35 @@
 """
 
 import base64
-import cookielib    # used for attachment upload
+import sys
+if sys.version_info < (3,):
+    import cookielib    # used for attachment upload
+    try:
+        from cStringIO import StringIO
+    except ImportError:
+        from StringIo import StringIO
+    import urllib2 as url_request
+    import urlparse
+    import httplib
+else:
+    import http.cookiejar as cookelib
+    from io import StringIO
+    import urllib.request as url_request
+    import urllib.parse as urlparse
+    import http.client as httplib
+    
 import cStringIO    # used for attachment upload
 import datetime
 import logging
-import mimetools    # used for attachment upload
+from email.generator import _make_boundary
 import os
 import re
 import copy
 import stat         # used for attachment upload
-import sys
 import time
 import types
 import urllib
-import urllib2      # used for image upload
-import urlparse
 import shutil       # used for attachment download
-import httplib      # Used for secure file upload.
 
 # use relative import for versions >=2.5 and package import for python versions <2.5
 if (sys.version_info[0] > 2) or (sys.version_info[0] == 2 and sys.version_info[1] >= 6):
@@ -605,7 +617,7 @@ class Shotgun(object):
             else:
                 auth_string = ""
             proxy_addr = "http://%s%s:%d" % (auth_string, self.config.proxy_server, self.config.proxy_port)
-            self.config.proxy_handler = urllib2.ProxyHandler({self.config.scheme : proxy_addr})
+            self.config.proxy_handler = url_request.ProxyHandler({self.config.scheme : proxy_addr})
 
         if ensure_ascii:
             self._json_loads = self._json_loads_ascii
@@ -2536,16 +2548,16 @@ class Shotgun(object):
             self.set_up_auth_cookie()
 
         try:
-            request = urllib2.Request(url)
+            request = url_request.Request(url)
             request.add_header('user-agent', "; ".join(self._user_agents))
-            req = urllib2.urlopen(request)
+            req = url_request.urlopen(request)
             if file_path:
                 shutil.copyfileobj(req, fp)
             else:
                 attachment = req.read()
         # 400 [sg] Attachment id doesn't exist or is a local file
         # 403 [s3] link is invalid
-        except urllib2.URLError as e:
+        except url_request.URLError as e:
             if file_path:
                 fp.close()
             err = "Failed to open %s\n%s" % (url, e)
@@ -2593,9 +2605,9 @@ class Shotgun(object):
             self.config.server, False, False, "/", True, False, None, True,
             None, None, {})
         cj.set_cookie(c)
-        cookie_handler = urllib2.HTTPCookieProcessor(cj)
+        cookie_handler = url_request.HTTPCookieProcessor(cj)
         opener = self._build_opener(cookie_handler)
-        urllib2.install_opener(opener)
+        url_request.install_opener(opener)
 
     def get_attachment_download_url(self, attachment):
         """
@@ -3103,7 +3115,7 @@ class Shotgun(object):
             handlers.append(self.config.proxy_handler)
 
         handlers.append(handler)
-        return urllib2.build_opener(*handlers)
+        return url_request.build_opener(*handlers)
 
     def _turn_off_ssl_validation(self):
         """
@@ -3810,15 +3822,15 @@ class Shotgun(object):
         :rtype: str
         """
         try:
-            opener = urllib2.build_opener(urllib2.HTTPHandler)
+            opener = url_request.build_opener(url_request.HTTPHandler)
 
-            request = urllib2.Request(storage_url, data=data)
+            request = url_request.Request(storage_url, data=data)
             request.add_header("Content-Type", content_type)
             request.add_header("Content-Length", size)
             request.get_method = lambda: "PUT"
             result = opener.open(request)
             etag = result.info().getheader("ETag")
-        except urllib2.HTTPError as e:
+        except url_request.HTTPError as e:
             if e.code == 500:
                 raise ShotgunError("Server encountered an internal error.\n%s\n%s\n\n" % (storage_url, e))
             else:
@@ -3912,7 +3924,7 @@ class Shotgun(object):
             resp = opener.open(url, params)
             result = resp.read()
             # response headers are in str(resp.info()).splitlines()
-        except urllib2.HTTPError as e:
+        except url_request.HTTPError as e:
             if e.code == 500:
                 raise ShotgunError("Server encountered an internal error. "
                                    "\n%s\n(%s)\n%s\n\n" % (url, self._sanitize_auth_params(params), e))
@@ -3951,12 +3963,12 @@ class CACertsHTTPSConnection(httplib.HTTPConnection):
         )
 
 
-class CACertsHTTPSHandler(urllib2.HTTPSHandler):
+class CACertsHTTPSHandler(url_request.HTTPSHandler):
     """
     Handler that ensures https connections are created with the custom CA certs.
     """
     def __init__(self, cacerts):
-        urllib2.HTTPSHandler.__init__(self)
+        url_request.HTTPSHandler.__init__(self)
         self.__ca_certs = cacerts
 
     def https_open(self, req):
@@ -3968,11 +3980,11 @@ class CACertsHTTPSHandler(urllib2.HTTPSHandler):
 
 # Helpers from the previous API, left as is.
 # Based on http://code.activestate.com/recipes/146306/
-class FormPostHandler(urllib2.BaseHandler):
+class FormPostHandler(url_request.BaseHandler):
     """
     Handler for multipart form data
     """
-    handler_order = urllib2.HTTPHandler.handler_order - 10 # needs to run first
+    handler_order = url_request.HTTPHandler.handler_order - 10 # needs to run first
 
     def http_request(self, request):
         data = request.get_data()
@@ -3995,9 +4007,9 @@ class FormPostHandler(urllib2.BaseHandler):
 
     def encode(self, params, files, boundary=None, buffer=None):
         if boundary is None:
-            boundary = mimetools.choose_boundary()
+            boundary = _make_boundary()
         if buffer is None:
-            buffer = cStringIO.StringIO()
+            buffer = StringIO()
         for (key, value) in params:
             buffer.write('--%s\r\n' % boundary)
             buffer.write('Content-Disposition: form-data; name="%s"' % key)
